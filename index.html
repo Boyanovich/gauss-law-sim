@@ -109,7 +109,6 @@
         const numLines = 10; 
         let animationOffset = 0;
 
-        // Массив для хранения всех зарядов
         let charges = [];
         let draggingCharge = null;
 
@@ -123,7 +122,6 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // Функции кнопок
         document.getElementById('add-pos').addEventListener('click', () => {
             charges.push({ x: width/2 + (Math.random()*40-20), y: height/2 + (Math.random()*40-20), radius: 22, isPositive: true });
         });
@@ -134,12 +132,9 @@
             charges = [];
         });
 
-        // Добавим один начальный заряд для красоты
         charges.push({ x: width/2, y: height/2, radius: 22, isPositive: true });
 
-        // Логика перетаскивания (для множества зарядов)
         function startDrag(clientX, clientY) {
-            // Ищем с конца массива, чтобы брать верхний заряд, если они накладываются
             for (let i = charges.length - 1; i >= 0; i--) {
                 let c = charges[i];
                 const dx = clientX - c.x;
@@ -215,7 +210,6 @@
             const centerX = width / 2;
             const centerY = height / 2;
 
-            // Рисуем Гауссову поверхность
             ctx.beginPath();
             ctx.arc(centerX, centerY, surfaceRadius, 0, Math.PI * 2);
             ctx.strokeStyle = '#666';
@@ -232,7 +226,6 @@
             animationOffset += 1.5; 
             if (animationOffset > 100) animationOffset = 0;
 
-            // Обрабатываем каждый заряд
             charges.forEach(charge => {
                 const distToCenter = Math.sqrt(Math.pow(charge.x - centerX, 2) + Math.pow(charge.y - centerY, 2));
                 const isInside = distToCenter < surfaceRadius;
@@ -284,7 +277,6 @@
                 }
             });
 
-            // Рисуем сами кружочки зарядов ПОВЕРХ линий
             charges.forEach(charge => {
                 ctx.beginPath();
                 ctx.arc(charge.x, charge.y, charge.radius, 0, Math.PI * 2);
@@ -301,7 +293,6 @@
                 ctx.fillText(charge.isPositive ? '+' : '-', charge.x, charge.y + 2);
             });
 
-            // Обновляем UI
             insideText.textContent = totalChargesInside;
             inText.textContent = linesEntering;
             outText.textContent = linesExiting;
