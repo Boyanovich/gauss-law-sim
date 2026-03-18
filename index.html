@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gauss's Law Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        canvas { display: block; }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(30, 30, 30, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+            min-width: 260px;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        h2 { margin: 0 0 15px 0; font-size: 1.2rem; color: #E0E0E0; }
+        .stat { margin: 8px 0; font-size: 1rem; color: #BBB; }
+        .stat span { font-weight: bold; color: #FFF; }
+        #net-flux {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #444;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .positive-flux { color: #FF6B6B; }
+        .negative-flux { color: #4D96FF; }
+        .zero-flux { color: #A8DADC; }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 5px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+            touch-action: manipulation;
+        }
+        button:active { filter: brightness(0.8); }
+        #add-pos { background-color: #FF6B6B; }
+        #add-neg { background-color: #4D96FF; }
+        #clear-btn { background-color: #555; margin-top: 10px; width: 100%; }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: #888;
+            pointer-events: none;
+            font-size: 0.9rem;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h2>Gauss's Law Flux</h2>
+        <div class="stat">Charges Inside: <span id="inside-text">0</span></div>
+        <div class="stat">Lines In: <span id="in-text">0</span></div>
+        <div class="stat">Lines Out: <span id="out-text">0</span></div>
+        <div id="net-flux">NET FLUX: <br><span id="flux-text" class="zero-flux">Φ = 0</span></div>
+        
+        <div class="btn-group">
+            <button id="add-pos">Add +Q</button>
+            <button id="add-neg">Add -Q</button>
+        </div>
+        <button id="clear-btn">Clear All</button>
+    </div>
+
+    <div id="instructions">Add charges and drag them inside/outside the Gaussian surface.</div>
+
+    <canvas id="simCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const insideText = document.getElementById('inside-text');
+        const inText = document.getElementById('in-text');
+        const outText = document.getElementById('out-text');
+        const fluxText = document.getElementById('flux-text');
+        
+        let width, height;
+        let surfaceRadius = 150;
+        const numLines = 10; 
+        let animationOffset = 0;
+
+        // Массив для хранения всех зарядов
+        let charges = [];
+        let draggingCharge = null;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            surfaceRadius = Math.min(width, height) * 0.30; 
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Функции кнопок
+        document.getElementById('add-pos').addEventListener('click', () => {
+            charges.push({ x: width/2 + (Math.random()*40-20), y: height/2 + (Math.random()*40-20), radius: 22, isPositive: true });
+        });
+        document.getElementById('add-neg').addEventListener('click', () => {
+            charges.push({ x: width/2 + (Math.random()*40-20), y: height/2 + (Math.random()*40-20), radius: 22, isPositive: false });
+        });
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            charges = [];
+        });
+
+        // Добавим один начальный заряд для красоты
+        charges.push({ x: width/2, y: height/2, radius: 22, isPositive: true });
+
+        // Логика перетаскивания (для множества зарядов)
+        function startDrag(clientX, clientY) {
+            // Ищем с конца массива, чтобы брать верхний заряд, если они накладываются
+            for (let i = charges.length - 1; i >= 0; i--) {
+                let c = charges[i];
+                const dx = clientX - c.x;
+                const dy = clientY - c.y;
+                if(Math.sqrt(dx*dx + dy*dy) < c.radius * 2.5) { 
+                    draggingCharge = c;
+                    return;
+                }
+            }
+        }
+
+        function moveDrag(clientX, clientY) {
+            if(draggingCharge) { 
+                draggingCharge.x = clientX; 
+                draggingCharge.y = clientY; 
+            }
+        }
+
+        function stopDrag() {
+            draggingCharge = null;
+        }
+
+        canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+        window.addEventListener('mouseup', stopDrag);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startDrag(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        
+        window.addEventListener('touchmove', (e) => {
+            if (draggingCharge) e.preventDefault();
+            moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        
+        window.addEventListener('touchend', stopDrag);
+
+        function getIntersections(cx, cy, r, origin, dir) {
+            const dx = origin.x - cx; const dy = origin.y - cy;
+            const a = dir.x * dir.x + dir.y * dir.y;
+            const b = 2 * (dx * dir.x + dy * dir.y);
+            const c = (dx * dx + dy * dy) - r * r;
+            const discriminant = b * b - 4 * a * c;
+
+            if (discriminant < 0) return [];
+            const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+            const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+            
+            let points = [];
+            if (t1 > 0) points.push({ x: origin.x + t1 * dir.x, y: origin.y + t1 * dir.y, t: t1 });
+            if (t2 > 0 && t2 !== t1) points.push({ x: origin.x + t2 * dir.x, y: origin.y + t2 * dir.y, t: t2 });
+            points.sort((A, B) => A.t - B.t);
+            return points;
+        }
+
+        function drawArrow(x, y, angle, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-12, 6);
+            ctx.lineTo(-12, -6);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            // Рисуем Гауссову поверхность
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, surfaceRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 10]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            let linesEntering = 0;
+            let linesExiting = 0;
+            let netChargeInside = 0;
+            let totalChargesInside = 0;
+            
+            animationOffset += 1.5; 
+            if (animationOffset > 100) animationOffset = 0;
+
+            // Обрабатываем каждый заряд
+            charges.forEach(charge => {
+                const distToCenter = Math.sqrt(Math.pow(charge.x - centerX, 2) + Math.pow(charge.y - centerY, 2));
+                const isInside = distToCenter < surfaceRadius;
+                
+                if (isInside) {
+                    netChargeInside += charge.isPositive ? 1 : -1;
+                    totalChargesInside++;
+                }
+                
+                const lineColor = charge.isPositive ? '#FF6B6B' : '#4D96FF';
+
+                for(let i = 0; i < numLines; i++) {
+                    const angle = (i * Math.PI * 2) / numLines;
+                    const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(charge.x, charge.y);
+                    ctx.lineTo(charge.x + dir.x * 2000, charge.y + dir.y * 2000);
+                    ctx.strokeStyle = `rgba(${charge.isPositive ? '255,107,107' : '77,150,255'}, 0.25)`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    for(let j = 0; j < 15; j++) {
+                        let arrowDist = charge.isPositive ? (j * 100 + animationOffset) : (j * 100 + (100 - animationOffset));
+                        if (arrowDist > 35) {
+                            const arrowX = charge.x + dir.x * arrowDist;
+                            const arrowY = charge.y + dir.y * arrowDist;
+                            const arrowAngle = charge.isPositive ? angle : angle + Math.PI; 
+                            drawArrow(arrowX, arrowY, arrowAngle, lineColor);
+                        }
+                    }
+
+                    const intersections = getIntersections(centerX, centerY, surfaceRadius, charge, dir);
+                    intersections.forEach((pt, index) => {
+                        let isEntering = isInside ? false : (index === 0);
+                        if (!charge.isPositive) isEntering = !isEntering;
+
+                        if (isEntering) linesEntering++;
+                        else linesExiting++;
+
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2); 
+                        ctx.fillStyle = isEntering ? '#FF4D4D' : '#4DFF4D';
+                        ctx.fill();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    });
+                }
+            });
+
+            // Рисуем сами кружочки зарядов ПОВЕРХ линий
+            charges.forEach(charge => {
+                ctx.beginPath();
+                ctx.arc(charge.x, charge.y, charge.radius, 0, Math.PI * 2);
+                ctx.fillStyle = charge.isPositive ? '#FF6B6B' : '#4D96FF';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(charge.isPositive ? '+' : '-', charge.x, charge.y + 2);
+            });
+
+            // Обновляем UI
+            insideText.textContent = totalChargesInside;
+            inText.textContent = linesEntering;
+            outText.textContent = linesExiting;
+
+            if (netChargeInside > 0) {
+                fluxText.innerHTML = `Φ = +${netChargeInside}Q / ε₀`;
+                fluxText.className = "positive-flux";
+            } else if (netChargeInside < 0) {
+                fluxText.innerHTML = `Φ = ${netChargeInside}Q / ε₀`;
+                fluxText.className = "negative-flux";
+            } else {
+                fluxText.innerHTML = "Φ = 0";
+                fluxText.className = "zero-flux";
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
