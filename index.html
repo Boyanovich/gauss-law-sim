@@ -18,33 +18,40 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(30, 30, 30, 0.9);
+            background: rgba(30, 30, 30, 0.95);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            border: 1px solid #333;
-            min-width: 260px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            border: 1px solid #3a3a3a;
+            min-width: 270px;
             pointer-events: auto;
             z-index: 10;
         }
-        h2 { margin: 0 0 15px 0; font-size: 1.2rem; color: #E0E0E0; }
-        .stat { margin: 8px 0; font-size: 1rem; color: #BBB; }
-        .stat span { font-weight: bold; color: #FFF; }
-        #net-flux {
+        h2 { margin: 0 0 18px 0; font-size: 1.25rem; color: #E0E0E0; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        
+        /* Упрощенные стили текста */
+        .stat { margin: 12px 0; font-size: 1.05rem; color: #CCC; }
+        .val { font-weight: bold; color: #FFF; font-size: 1.1rem; }
+        sub { font-size: 0.75em; }
+        
+        #flux-value {
             margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #444;
-            font-size: 1.2rem;
+            padding: 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.25rem;
             font-weight: bold;
+            border: 1px solid #333;
         }
-        .positive-flux { color: #FF6B6B; }
-        .negative-flux { color: #4D96FF; }
-        .zero-flux { color: #A8DADC; }
+        .positive-flux { color: #FF7B7B; border-color: #FF7B7B !important; }
+        .negative-flux { color: #5DA1FF; border-color: #5DA1FF !important; }
+        .zero-flux { color: #A8DADC; border-color: #444 !important; }
         
         .btn-group {
             display: flex;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 12px;
+            margin-top: 20px;
         }
         button {
             flex: 1;
@@ -53,36 +60,42 @@
             font-weight: bold;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.2s;
             touch-action: manipulation;
         }
-        button:active { filter: brightness(0.8); }
-        #add-pos { background-color: #FF6B6B; }
-        #add-neg { background-color: #4D96FF; }
-        #clear-btn { background-color: #555; margin-top: 10px; width: 100%; }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        button:active { filter: brightness(0.9); transform: translateY(1px); }
+        #add-pos { background-color: #FF6B6B; box-shadow: 0 2px 5px rgba(255,107,107,0.3); }
+        #add-neg { background-color: #4D96FF; box-shadow: 0 2px 5px rgba(77,150,255,0.3); }
+        #clear-btn { background-color: #444; margin-top: 12px; width: 100%; color: #AAA; }
+        #clear-btn:hover { background-color: #555; color: #FFF; }
         
         #instructions {
             position: absolute;
-            bottom: 20px;
+            bottom: 25px;
             width: 100%;
             text-align: center;
-            color: #888;
+            color: #AAA;
             pointer-events: none;
-            font-size: 0.9rem;
+            font-size: 1rem;
             z-index: 5;
+            line-height: 1.5;
+        }
+        .instruction-note {
+            font-size: 0.85rem;
+            color: #666;
         }
     </style>
 </head>
 <body>
 
     <div id="ui-panel">
-        <h2>Gauss's Law Flux</h2>
-        <div class="stat">Charges Inside: <span id="inside-text">0</span></div>
-        <div class="stat">Lines In: <span id="in-text">0</span></div>
-        <div class="stat">Lines Out: <span id="out-text">0</span></div>
-        <div id="net-flux">NET FLUX: <br><span id="flux-text" class="zero-flux">Φ = 0</span></div>
+        <h2>Gauss's Law Simulator</h2>
+        <div class="stat">Enclosed Charge (Q<sub>enc</sub>): <span id="inside-text" class="val">0 Q</span></div>
+        <div class="stat">Electric Flux (Φ<sub>E</sub>):</div>
+        <div id="flux-value" class="zero-flux">Φ<sub>E</sub> = 0</div>
         
         <div class="btn-group">
             <button id="add-pos">Add +Q</button>
@@ -91,26 +104,26 @@
         <button id="clear-btn">Clear All</button>
     </div>
 
-    <div id="instructions">Add charges and drag them inside/outside the Gaussian surface.</div>
+    <div id="instructions">
+        Drag charges inside or outside the surface.<br>
+        <span class="instruction-note">Note: Flux depends ONLY on enclosed charges. Charges exactly on the boundary contribute Q/2.</span>
+    </div>
 
     <canvas id="simCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
-        
         const insideText = document.getElementById('inside-text');
-        const inText = document.getElementById('in-text');
-        const outText = document.getElementById('out-text');
-        const fluxText = document.getElementById('flux-text');
+        const fluxValue = document.getElementById('flux-value');
         
         let width, height;
         let surfaceRadius = 150;
-        const numLines = 10; 
+        const numLines = 12; 
         let animationOffset = 0;
-
         let charges = [];
         let draggingCharge = null;
+        const boundaryTolerance = 16; 
 
         function resize() {
             width = window.innerWidth;
@@ -123,10 +136,10 @@
         resize();
 
         document.getElementById('add-pos').addEventListener('click', () => {
-            charges.push({ x: width/2 + (Math.random()*40-20), y: height/2 + (Math.random()*40-20), radius: 22, isPositive: true });
+            charges.push({ x: width/2 + (Math.random()*60-30), y: height/2 + (Math.random()*60-30), radius: 22, isPositive: true });
         });
         document.getElementById('add-neg').addEventListener('click', () => {
-            charges.push({ x: width/2 + (Math.random()*40-20), y: height/2 + (Math.random()*40-20), radius: 22, isPositive: false });
+            charges.push({ x: width/2 + (Math.random()*60-30), y: height/2 + (Math.random()*60-30), radius: 22, isPositive: false });
         });
         document.getElementById('clear-btn').addEventListener('click', () => {
             charges = [];
@@ -145,64 +158,22 @@
                 }
             }
         }
-
         function moveDrag(clientX, clientY) {
-            if(draggingCharge) { 
-                draggingCharge.x = clientX; 
-                draggingCharge.y = clientY; 
-            }
+            if(draggingCharge) { draggingCharge.x = clientX; draggingCharge.y = clientY; }
         }
-
-        function stopDrag() {
-            draggingCharge = null;
-        }
+        function stopDrag() { draggingCharge = null; }
 
         canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
         window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
         window.addEventListener('mouseup', stopDrag);
-
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            startDrag(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        
-        window.addEventListener('touchmove', (e) => {
-            if (draggingCharge) e.preventDefault();
-            moveDrag(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (draggingCharge) e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
         window.addEventListener('touchend', stopDrag);
 
-        function getIntersections(cx, cy, r, origin, dir) {
-            const dx = origin.x - cx; const dy = origin.y - cy;
-            const a = dir.x * dir.x + dir.y * dir.y;
-            const b = 2 * (dx * dir.x + dy * dir.y);
-            const c = (dx * dx + dy * dy) - r * r;
-            const discriminant = b * b - 4 * a * c;
-
-            if (discriminant < 0) return [];
-            const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
-            const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
-            
-            let points = [];
-            if (t1 > 0) points.push({ x: origin.x + t1 * dir.x, y: origin.y + t1 * dir.y, t: t1 });
-            if (t2 > 0 && t2 !== t1) points.push({ x: origin.x + t2 * dir.x, y: origin.y + t2 * dir.y, t: t2 });
-            points.sort((A, B) => A.t - B.t);
-            return points;
-        }
-
         function drawArrow(x, y, angle, color) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(-12, 6);
-            ctx.lineTo(-12, -6);
-            ctx.closePath();
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.restore();
+            ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-12, 6); ctx.lineTo(-12, -6); ctx.closePath();
+            ctx.fillStyle = color; ctx.fill(); ctx.restore();
         }
 
         function draw() {
@@ -212,105 +183,75 @@
 
             ctx.beginPath();
             ctx.arc(centerX, centerY, surfaceRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([10, 10]);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            ctx.strokeStyle = '#555'; ctx.lineWidth = 3; ctx.setLineDash([10, 10]);
+            ctx.stroke(); ctx.setLineDash([]);
 
-            let linesEntering = 0;
-            let linesExiting = 0;
             let netChargeInside = 0;
-            let totalChargesInside = 0;
-            
             animationOffset += 1.5; 
             if (animationOffset > 100) animationOffset = 0;
 
             charges.forEach(charge => {
                 const distToCenter = Math.sqrt(Math.pow(charge.x - centerX, 2) + Math.pow(charge.y - centerY, 2));
-                const isInside = distToCenter < surfaceRadius;
+                let isOnSurface = Math.abs(distToCenter - surfaceRadius) <= boundaryTolerance;
+                let isInside = distToCenter < surfaceRadius && !isOnSurface;
+
+                if (isOnSurface) netChargeInside += charge.isPositive ? 0.5 : -0.5;
+                else if (isInside) netChargeInside += charge.isPositive ? 1 : -1;
                 
-                if (isInside) {
-                    netChargeInside += charge.isPositive ? 1 : -1;
-                    totalChargesInside++;
-                }
-                
-                const lineColor = charge.isPositive ? '#FF6B6B' : '#4D96FF';
+                const lineColor = charge.isPositive ? '#FF7B7B' : '#5DA1FF';
 
                 for(let i = 0; i < numLines; i++) {
                     const angle = (i * Math.PI * 2) / numLines;
                     const dir = { x: Math.cos(angle), y: Math.sin(angle) };
-                    
                     ctx.beginPath();
                     ctx.moveTo(charge.x, charge.y);
                     ctx.lineTo(charge.x + dir.x * 2000, charge.y + dir.y * 2000);
-                    ctx.strokeStyle = `rgba(${charge.isPositive ? '255,107,107' : '77,150,255'}, 0.25)`;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
+                    ctx.strokeStyle = `rgba(${charge.isPositive ? '255,123,123' : '93,161,255'}, 0.25)`;
+                    ctx.lineWidth = 2; ctx.stroke();
 
                     for(let j = 0; j < 15; j++) {
                         let arrowDist = charge.isPositive ? (j * 100 + animationOffset) : (j * 100 + (100 - animationOffset));
                         if (arrowDist > 35) {
-                            const arrowX = charge.x + dir.x * arrowDist;
-                            const arrowY = charge.y + dir.y * arrowDist;
-                            const arrowAngle = charge.isPositive ? angle : angle + Math.PI; 
-                            drawArrow(arrowX, arrowY, arrowAngle, lineColor);
+                            drawArrow(charge.x + dir.x * arrowDist, charge.y + dir.y * arrowDist, charge.isPositive ? angle : angle + Math.PI, lineColor);
                         }
                     }
-
-                    const intersections = getIntersections(centerX, centerY, surfaceRadius, charge, dir);
-                    intersections.forEach((pt, index) => {
-                        let isEntering = isInside ? false : (index === 0);
-                        if (!charge.isPositive) isEntering = !isEntering;
-
-                        if (isEntering) linesEntering++;
-                        else linesExiting++;
-
-                        ctx.beginPath();
-                        ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2); 
-                        ctx.fillStyle = isEntering ? '#FF4D4D' : '#4DFF4D';
-                        ctx.fill();
-                        ctx.strokeStyle = '#000';
-                        ctx.lineWidth = 1;
-                        ctx.stroke();
-                    });
                 }
             });
 
             charges.forEach(charge => {
+                const distToCenter = Math.sqrt(Math.pow(charge.x - centerX, 2) + Math.pow(charge.y - centerY, 2));
+                let isOnSurface = Math.abs(distToCenter - surfaceRadius) <= boundaryTolerance;
+
                 ctx.beginPath();
                 ctx.arc(charge.x, charge.y, charge.radius, 0, Math.PI * 2);
+                if (isOnSurface) { ctx.shadowBlur = 25; ctx.shadowColor = '#FFFFFF'; } 
+                else { ctx.shadowBlur = 0; }
+
                 ctx.fillStyle = charge.isPositive ? '#FF6B6B' : '#4D96FF';
                 ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 3;
-                ctx.stroke();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+                ctx.shadowBlur = 0; 
                 
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(charge.isPositive ? '+' : '-', charge.x, charge.y + 2);
             });
 
-            insideText.textContent = totalChargesInside;
-            inText.textContent = linesEntering;
-            outText.textContent = linesExiting;
+            let chargeText = netChargeInside === 0 ? "0" : (netChargeInside > 0 ? "+" : "") + netChargeInside;
+            insideText.textContent = chargeText + " Q";
 
             if (netChargeInside > 0) {
-                fluxText.innerHTML = `Φ = +${netChargeInside}Q / ε₀`;
-                fluxText.className = "positive-flux";
+                fluxValue.innerHTML = `Φ<sub>E</sub> = +${netChargeInside}Q / ε₀`;
+                fluxValue.className = "positive-flux";
             } else if (netChargeInside < 0) {
-                fluxText.innerHTML = `Φ = ${netChargeInside}Q / ε₀`;
-                fluxText.className = "negative-flux";
+                fluxValue.innerHTML = `Φ<sub>E</sub> = ${netChargeInside}Q / ε₀`;
+                fluxValue.className = "negative-flux";
             } else {
-                fluxText.innerHTML = "Φ = 0";
-                fluxText.className = "zero-flux";
+                fluxValue.innerHTML = "Φ<sub>E</sub> = 0";
+                fluxValue.className = "zero-flux";
             }
 
             requestAnimationFrame(draw);
         }
-
         draw();
     </script>
 </body>
